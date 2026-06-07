@@ -1,0 +1,6 @@
+backend/venv/
+backend/__pycache__/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store  # for hidden files on linux 
