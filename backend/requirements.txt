@@ -1,0 +1,14 @@
+# 1. THE WEB FRAMEWORK: Creates the API routes, manages requests, and builds the interactive /docs UI
+fastapi>=0.111.0
+
+# 2. THE WEB SERVER: Binds your app to a network port and listens live for incoming web traffic
+uvicorn>=0.30.1
+
+# 3. THE AI ENGINE: Loads your best.pt weights and runs the matrix calculations for table detection
+ultralytics>=8.4.57
+
+# 4. THE DATA DECODER: Allows FastAPI to accept and parse raw incoming binary image files over HTTP
+python-multipart>=0.0.9
+
+# 5. THE IMAGE PROCESSOR: Converts raw uploaded file bytes in memory into clean RGB layouts for YOLO
+pillow>=10.4.0
