@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from ultralytics import YOLO
 
@@ -11,6 +12,22 @@ app = FastAPI(
     title="YOLOv8 Table Layout Detector API",
     description="API to extract tables, row headers, and column headers from document images.",
     version="1.0.0"
+)
+allow_origins=[
+    "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://192.168.1.84:3000",
+        "http://192.168.1.84:3001"
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Target the weights path relative to this file location
