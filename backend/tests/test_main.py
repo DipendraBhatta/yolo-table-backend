@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import numpy as np
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch  # MagicMock for creating fake objects, patch for replacing real classes/functions with our fakes during tests   
 import backend.main
 from backend.main import app
 
@@ -14,10 +14,8 @@ sys.path.append(str(Path(__file__).resolve().parent))
 # Initialize the test client with our FastAPI instance
 client = TestClient(app)
 
-# ====================================================================
-# 1. HEALTH ENDPOINT TESTS
-# ====================================================================
 
+# 1. HEALTH ENDPOINT TESTS
 def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
@@ -30,10 +28,7 @@ def test_read_status():
     assert "model" in response.json()
 
 
-# ====================================================================
 # 2. VALIDATION & ERROR HANDLING TESTS
-# ====================================================================
-
 def test_predict_invalid_file_extension():
     # Attempt to upload a text file instead of an image
     file_payload = {"file": ("document.txt", b"dummy file content", "text/plain")}
@@ -43,10 +38,8 @@ def test_predict_invalid_file_extension():
     assert response.json()["detail"] == "Invalid image format. Please upload a JPG or PNG."
 
 
-# ====================================================================
-# 3. MOCKED DETECTION RUNTIME TESTS
-# ====================================================================
 
+# 3. MOCKED DETECTION RUNTIME TESTS
 @patch('backend.main.YOLO') 
 def test_predict_all_classes(mock_yolo_class):
     """
@@ -110,9 +103,7 @@ def test_predict_all_classes(mock_yolo_class):
     assert json_data["detections"][2]["confidence"] == 0.88
 
 
-# ====================================================================
 # 4. LIFECYCLE ROUTE TESTS
-# ====================================================================
 
 def test_delete_model_endpoint():
     """
