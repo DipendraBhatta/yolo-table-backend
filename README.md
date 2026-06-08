@@ -6,7 +6,7 @@ A full-stack document intelligence system that detects and segments table struct
 
 ## Project Overview
 
-This project fine-tunes YOLOv8 on a dataset of ~3,500 annotated document images to identify three structural elements inside tables:
+This project fine-tunes YOLOv26 on a dataset of ~3,500 annotated document images to identify three structural elements inside tables:
 
 | Class | Description |
 |---|---|
@@ -17,6 +17,148 @@ This project fine-tunes YOLOv8 on a dataset of ~3,500 annotated document images 
 The system exposes a FastAPI backend for inference, a Next.js frontend for visual interaction, and a GitHub Actions CI pipeline for automated quality checks.
 
 ---
+
+## Training Pipeline (Google Colab Notebook)
+
+The model was trained and evaluated end-to-end in `YOLOv26_table_boundary_box_detection.ipynb` using a T4 GPU on Google Colab. The notebook is structured into the following stages:
+
+### Stage 1 — Environment Setup
+- GPU availability verified via `nvidia-smi`
+- Ultralytics installed with `albumentations` for augmentation support
+- Google Drive mounted securely via OAuth 2.0 (`flush_and_unmount` called first to prevent stale directory handles corrupting checkpoints mid-training)
+
+### Stage 2 — Dataset Caching
+
+Training data is copied from Google Drive to local Colab disk before training begins, eliminating network I/O bottlenecks and keeping GPU utilization at 100%.
+
+```
+/content/table_dataset/
+├── train/   (images + labels)
+├── val/     (images + labels)
+├── test/    (images + labels) (holdout – never used during training)
+└── dataset.yaml
+```
+
+**`dataset.yaml`** — the configuration file that tells YOLO where to find images, how many classes exist, and what each class is named:
+
+```yaml
+path: /content/table_dataset
+train: train/images
+val:   val/images
+test:  test/images
+
+nc: 3
+names:
+  0: table
+  1: table column header
+  2: table projected row header
+```
+
+### Stage 3 — Model Training
+
+The YOLOv26 model (`yolo26m.pt`) was trained with the following hyperparameters:
+
+| Hyperparameter | Value | Rationale |
+|---|---|---|
+| `epochs` | 80 | Maximum training passes |
+| `imgsz` | 800 | High-resolution input to match document page density |
+| `batch` | 4–16 | Tuned per available T4 VRAM |
+| `device` | 0 (GPU) | Locks training to T4 GPU |
+| `workers` | 4–8 | Parallel data pre-fetching threads |
+| `cache` | True | Dataset loaded into RAM to eliminate disk read lag |
+| `amp` | True | Mixed-precision training — cuts VRAM use, speeds up epochs |
+| `patience` | 15 | Early stopping if validation mAP stops improving |
+
+**Resume-safe training:** The notebook detects `last.pt` on Drive and resumes from the exact epoch checkpoint if the Colab session disconnects, preventing full restarts on long runs.
+
+### Stage 4 — Loss Curve Analysis
+
+Three loss curves are plotted across all epochs to diagnose overfitting:
+
+![loss curves](assets/losses.png)
+
+
+
+| Graph | What it measures |
+|---|---|
+| **Box Loss** (train vs val) | How tightly predicted bounding boxes align with ground-truth annotations |
+| **Classification Loss** (train vs val) | How accurately the model assigns the correct class |
+| **DFL Loss** (train vs val) | Distribution Focal Loss — measures confidence calibration of box edge predictions |
+
+A converging train/val gap on all three curves confirms the model is generalizing rather than memorising training data.
+
+Two accuracy metric curves are plotted alongside:
+![performance matrices](assets/performance_matrices.png)
+| Graph | What it measures |
+|---|---|
+| **mAP50** | Mean Average Precision at IoU ≥ 0.50 — standard detection accuracy |
+| **mAP50-95** | Stricter average across IoU thresholds 0.50–0.95 — measures localization precision |
+| **Precision vs Recall** | Trade-off between false positives (Precision) and missed detections (Recall) |
+
+A **Confusion Matrix** is also rendered for the validation split, showing per-class true positives vs. misclassifications vs. background false positives.
+
+### Stage 5 — Automated Readiness Audit (Validation)
+
+The notebook runs a go/no-go quality gate before approving the model for test-set evaluation:
+
+```
+[1] STABILITY GAPS  → Box Delta < 0.20  |  Class Delta < 0.20
+[2] ACCURACY SCORES → mAP50 ≥ 0.90     |  mAP50-95 ≥ 0.75
+[3] PROFILE BALANCE → Precision & Recall reported per epoch
+[4] BEST PEAK       → Best Epoch # identified by peak mAP50-95
+```
+
+A **per-class performance table** during validation is printed at this stage:
+
+| Class | Precision | Recall | mAP@0.50 | mAP@0.50:0.95 |
+|---|---|---|---|---|
+| `table` | 0.9808| 0.9854 | 0.9935 | 0.9888 |
+| `table column header` | 0.9724 | 0.9727 | 0.9875 | 0.9191|
+| `table projected row header` | 0.9033 | 0.9485 | 0.9498 | 0.8113 |
+
+
+> Exact metric values are generated at runtime and saved to `results.csv` inside `YOLOv26_TableProject/table_detectorm/` on Google Drive.
+
+---
+
+## Test Set Evaluation
+
+After the validation audit passes, the model is evaluated on a completely held-out test split — data the model has never seen during training or validation.
+
+### Test Configuration
+
+| Parameter | Value |
+|---|---|
+| Split | `test` (holdout — never seen during training) |
+| Confidence threshold | `0.50` |
+| IoU threshold (NMS) | `0.75` |
+| Input resolution | `800px` |
+| Weights | `best.pt` |
+
+
+A **per-class performance table** is printed at this stage:
+
+| Class | Precision | Recall | mAP@0.50 | mAP@0.50:0.95 |
+|---|---|---|---|---|
+| `table` | 0.9917| 0.9821 | 0.9843 | 0.9755 |
+| `table column header` | 0.9739 | 0.9717 | 0.9666 | 0.9062|
+| `table projected row header` | 0.9652 | 0.9067 | 0.9106 | 0.7901 |
+
+
+
+
+### Pass / Fail Criteria
+
+```
+Test mAP50    ≥ 0.90   AND
+Test mAP50-95 ≥ 0.75
+→  PASSED. MODEL MEETS PRODUCTION REQUIREMENTS FOR DEPLOYMENT.
+```
+
+
+The model correctly identified all three structural layers of the table with high confidence you can see this in frontend sample.
+
+
 
 ## Repository Structure
 
@@ -42,11 +184,17 @@ YOLO/
 │   ├── package.json
 │   ├── next.config.ts
 │   └── tsconfig.json
+├── YOLOv26_table_boundary_box_detection.ipynb   # Training, evaluation & metrics notebook
+├── dataset.yaml                                 # YOLO dataset configuration (classes & split paths)
 ├── .gitignore
-├── AGENTS.md
-├── CLAUDE.md
 └── README.md
 ```
+---
+
+
+> **`YOLOv26_table_boundary_box_detection.ipynb`** — the full training notebook: environment setup, dataset caching, model training with resume support, loss/mAP/Precision-Recall graphs, Confusion Matrix, automated readiness audit, and holdout test evaluation.
+
+> **`dataset.yaml`** — tells YOLO the dataset root path, the train/val/test image folder locations, the number of classes (`nc: 3`), and the class name list. Keep this in sync with your Google Drive dataset structure before running the notebook.
 
 ---
 

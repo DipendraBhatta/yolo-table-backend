@@ -1,0 +1,8 @@
+names:
+  0: table
+  1: table column header
+  2: table projected row header
+path: /content/drive/MyDrive/table_dataset
+test: test/images
+train: train/images
+val: val/images
