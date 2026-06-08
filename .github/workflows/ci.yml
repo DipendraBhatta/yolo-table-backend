@@ -78,7 +78,7 @@ jobs:
         sleep 10
 
         echo "Checking health endpoint..."
-        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:8000/root || exit 1
         echo " API is up and responding!"
 
         # Step 5: Run pytest test cases against the live API
