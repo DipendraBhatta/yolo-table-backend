@@ -102,7 +102,7 @@ def test_predict_all_classes(mock_yolo_class):
     assert json_data["detections"][2]["class_name"] == "table projected row header"
     assert json_data["detections"][2]["confidence"] == 0.88
 
-
+a  
 # 4. LIFECYCLE ROUTE TESTS
 
 def test_delete_model_endpoint():
